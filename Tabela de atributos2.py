@@ -1,33 +1,37 @@
-from qgis.core import QgsProject, QgsField, QgsExpression, QgsExpressionContext, QgsExpressionContextUtils
-from qgis.utils import iface
+from qgis._core import QgsMapLayer, QgsWkbTypes, QgsProject, QgsExpressionContext, QgsExpression, QgsExpressionContextUtils, QgsField
+project = QgsProject.instance()
 
-area_sup = QgsProject.instance().mapLayersByName('Área_de_supressão')[0]
-pv = area_sup.dataProvider()
+#Data
+supressao: QgsMapLayer = project.mapLayersByName('Área de supressão')[0]
+supressao.startEditing()
+supressao.addAttribute(QgsField('Data', QVariant.String, len=0))
+supressao.commitChanges()
 
-# Adicionar atributo 'areaha'
-pv.addAttributes([QgsField('Área ha', QVariant.Double)])
-area_sup.updateFields()
+#Tipo
+supressao: QgsMapLayer = project.mapLayersByName('Área de supressão')[0]
+supressao.startEditing()
+supressao.addAttribute(QgsField('Tipo', QVariant.String, len=0))
+supressao.commitChanges()
 
-expressao1 = QgsExpression('round($area/10000, 4)')  # Use a função round() para definir a precisão
-contexto = QgsExpressionContext()
-contexto.appendScopes(QgsExpressionContextUtils.globalProjectLayerScopes(area_sup))
+#Área ha
+supressao = project.mapLayersByName('Área de supressão')[0]
+if supressao is not None:
+    supressao.startEditing()
+    supressao.addAttribute(QgsField('Área ha', QVariant.String))
+    supressao.commitChanges()
+    for feature in supressao.getFeatures():
+        area = feature.geometry().area() / 10000
+        area_arredondado = round(area, 4)
+        supressao.changeAttributeValue(feature.id(), supressao.fields().indexFromName('Área ha'), round(area, 4))
+        supressao.commitChanges()
+        print("ID da Feição: {}, Área: {}".format(feature_id, area))
+        print("ÁreaArredondado: {}".format(area_arredondado))
+    print("Área em hectares calculada e atribuída com sucesso.")
+else:
+    print("Camada 'Área de supressão' não encontrada.")
 
-# Forçar início da edição
-area_sup.startEditing()
-
-# com edição (area_sup):
-for f in area_sup.getFeatures():
-    contexto.setFeature(f)
-    idx_areaha = f.fieldNameIndex('Área ha')
-    if idx_areaha != -1:
-        f['Área ha'] = expressao1.evaluate(contexto)
-        print(f['Área ha'])  # Mensagem de depuração
-        area_sup.updateFeature(f)
-
-# Forçar finalização da edição
-area_sup.commitChanges()
-
-# Atualizar a interface gráfica do QGIS
-iface.mapCanvas().refresh()
-
-
+#Poli
+supressao: QgsMapLayer = project.mapLayersByName('Área de supressão')[0]
+supressao.startEditing()
+supressao.addAttribute(QgsField('Poli', QVariant.String, len=0))
+supressao.commitChanges()
