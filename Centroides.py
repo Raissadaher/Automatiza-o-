@@ -1,15 +1,21 @@
 from qgis.utils import iface
-from qgis.core import QgsVectorLayer, QgsFeature, QgsField, QgsCoordinateReferenceSystem
-from qgis.core import QgsProject, QgsGeometry, QgsVectorFileWriter
+from qgis.core import QgsVectorLayer, QgsField, QgsCoordinateReferenceSystem, QgsProject
+from qgis.core import QgsVectorFileWriter, edit
+
+project = QgsProject.instance()
 
 # Carrega a camada original
-supressao = iface.addVectorLayer("C:/Users/raissa.alves/Desktop/GEGEO/Alertas/2024/9753 Fazenda Bateias - Gordura/teste/Área de supressão.shp", "Área de supressão", "ogr")
+supressao = iface.addVectorLayer(
+    "C:/Users/raissa.alves/Desktop/GEGEO/Alertas/2024/9753 Fazenda Bateias - Gordura/teste/Área de supressão.shp",
+    "Área de supressão", "ogr")
 
 # Verifica se a camada original foi carregada com sucesso
 if supressao:
     # Define o CRS da camada de centroides como o mesmo da camada original
     crs = supressao.crs()
-    centroides = QgsVectorLayer('Point?crs=' + crs.authid() + '&field=Área ha:double&field=Tipo:string&field=Data:string&field=id:int', 'Centroides gerais', 'memory')
+    centroides = QgsVectorLayer(
+        'Point?crs=' + crs.authid() + '&field=Área ha:double&field=Tipo:string&field=Data:string&field=id:int',
+        'Centroides temp', 'memory')
 
     # Verifica se a camada de centroides foi criada com sucesso
     if centroides:
@@ -19,7 +25,6 @@ if supressao:
         centroides.addAttribute(QgsField('Área ha', QVariant.Double))
         centroides.addAttribute(QgsField('Tipo', QVariant.String))
         centroides.addAttribute(QgsField('Data', QVariant.String))
-        centroides.addAttribute(QgsField('id', QVariant.Int))
 
         # Loop sobre todas as feições da camada original
         for source_feature in supressao.getFeatures():
@@ -43,11 +48,11 @@ if supressao:
         print("Falha ao criar a camada de centroides.")
 else:
     print("Falha ao carregar a camada original.")
-    
+
 # Exporta a camada
 if centroides:
-    crs = centroides.crs()
-    path = "C:/Users/raissa.alves/Desktop/GEGEO/Alertas/2024/9753 Fazenda Bateias - Gordura/teste/Centroides gerais.shp"
+    crs = QgsCoordinateReferenceSystem('EPSG:4674')
+    path = "C:/Users/raissa.alves/Desktop/GEGEO/Alertas/2024/9753 Fazenda Bateias - Gordura/teste/Centroides temp.shp"
     result = QgsVectorFileWriter.writeAsVectorFormat(centroides, path, "utf-8", crs, "ESRI Shapefile")
     if result == QgsVectorFileWriter.NoError:
         print("Camada de centroides exportada com sucesso.")
@@ -56,5 +61,29 @@ if centroides:
 else:
     print("Camada de centroides não encontrada.")
 
+# Carrega a camada de centroides
+centroides = iface.addVectorLayer(path, "Centroides gerais", "ogr")
+
+# Adiciona os campos "Lat" e "Long" à tabela de atributos
+if centroides:
+    with edit(centroides):
+        centroides.addAttribute(QgsField("Lat", QVariant.Double))
+        centroides.addAttribute(QgsField("Long", QVariant.Double))
+    print("Campos 'Lat' e 'Long' adicionados à tabela de atributos.")
+
+    # Atualiza a camada de centroides
+    centroides.updateFields()
+
+    # Preenche os campos "Lat" e "Long" com os valores das coordenadas dos centroides
+# Preenche os campos "Lat" e "Long" com os valores das coordenadas dos centroides, com precisão de 4 casas decimais
+with edit(centroides):
+    for feature in centroides.getFeatures():
+        centroid = feature.geometry().centroid().asPoint()
+        lat = round(centroid.y(), 4)
+        long = round(centroid.x(), 4)
+        feature.setAttribute("Lat", lat)
+        feature.setAttribute("Long", long)
+        centroides.updateFeature(feature)
+print("Coordenadas de latitude e longitude adicionadas à tabela de atributos com precisão de 4 casas decimais.")
 
 
