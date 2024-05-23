@@ -37,7 +37,7 @@ if result_dissolucao_preservacao and result_dissolucao_preservacao['OUTPUT']:
     result_interseccao_sup_press_dissolvido = processing.run("native:intersection", params_interseccao)
     if result_interseccao_sup_press_dissolvido and result_interseccao_sup_press_dissolvido['OUTPUT']:
         layer_interseccao = result_interseccao_sup_press_dissolvido['OUTPUT']
-        layer_interseccao.setName("Interseccao_sup_pres_dissolvido")
+        layer_interseccao.setName("Área de supressão APP")
         QgsProject.instance().addMapLayer(layer_interseccao)
 
         # Fazer a diferença com a área de supressão
@@ -49,7 +49,7 @@ if result_dissolucao_preservacao and result_dissolucao_preservacao['OUTPUT']:
 
         if diferenca_sup_press_dissolvido and 'OUTPUT' in diferenca_sup_press_dissolvido:
             layer_diferenca = diferenca_sup_press_dissolvido['OUTPUT']
-            layer_diferenca.setName("Diferenca_sup_press_dissolvido")
+            layer_diferenca.setName("Diferença da supressão com a app")
             QgsProject.instance().addMapLayer(layer_diferenca)
 
             # Executar operação de interseção com a reserva legal
@@ -62,7 +62,7 @@ if result_dissolucao_preservacao and result_dissolucao_preservacao['OUTPUT']:
             result_interseccao_rl = processing.run("native:intersection", params_interseccao_rl)
             if result_interseccao_rl and 'OUTPUT' in result_interseccao_rl:
                 layer_interseccao_rl = result_interseccao_rl['OUTPUT']
-                layer_interseccao_rl.setName("Interseccao_diferenca_sup_rl")
+                layer_interseccao_rl.setName("Área de supressão em RL")
                 QgsProject.instance().addMapLayer(layer_interseccao_rl)
 
                 # Fazer a diferença com o shapefile resultante da diferença com a área de supressão
@@ -74,7 +74,7 @@ if result_dissolucao_preservacao and result_dissolucao_preservacao['OUTPUT']:
 
                 if diferenca_interseccao_sup_rl and 'OUTPUT' in diferenca_interseccao_sup_rl:
                     layer_diferenca_final = diferenca_interseccao_sup_rl['OUTPUT']
-                    layer_diferenca_final.setName("Diferenca_interseccao_sup_rl")
+                    layer_diferenca_final.setName("Área de supressão fora")
                     QgsProject.instance().addMapLayer(layer_diferenca_final)
                 else:
                     print("Falha ao executar a operação de diferença com o shapefile resultante da diferença com a área de supressão.")
