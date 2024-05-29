@@ -40,10 +40,19 @@ if result_dissolucao_preservacao and result_dissolucao_preservacao['OUTPUT']:
         layer_interseccao.setName("Área de supressão APP")
         QgsProject.instance().addMapLayer(layer_interseccao)
 
+        # Converter multipartes para partes simples
+        result_interseccao_singles = processing.run("native:multiparttosingleparts", {
+            'INPUT': layer_interseccao,
+            'OUTPUT': 'memory:'
+        })
+        layer_interseccao_singles = result_interseccao_singles['OUTPUT']
+        layer_interseccao_singles.setName("Área de supressão APP (Partes Simples)")
+        QgsProject.instance().addMapLayer(layer_interseccao_singles)
+
         # Fazer a diferença com a área de supressão
         diferenca_sup_press_dissolvido = processing.run("native:difference", {
             'INPUT': supressao,
-            'OVERLAY': layer_interseccao,
+            'OVERLAY': layer_interseccao_singles,
             'OUTPUT': 'memory:'
         })
 
@@ -65,10 +74,19 @@ if result_dissolucao_preservacao and result_dissolucao_preservacao['OUTPUT']:
                 layer_interseccao_rl.setName("Área de supressão em RL")
                 QgsProject.instance().addMapLayer(layer_interseccao_rl)
 
+                # Converter multipartes para partes simples
+                result_interseccao_rl_singles = processing.run("native:multiparttosingleparts", {
+                    'INPUT': layer_interseccao_rl,
+                    'OUTPUT': 'memory:'
+                })
+                layer_interseccao_rl_singles = result_interseccao_rl_singles['OUTPUT']
+                layer_interseccao_rl_singles.setName("Área de supressão em RL (Partes Simples)")
+                QgsProject.instance().addMapLayer(layer_interseccao_rl_singles)
+
                 # Fazer a diferença com o shapefile resultante da diferença com a área de supressão
                 diferenca_interseccao_sup_rl = processing.run("native:difference", {
                     'INPUT': layer_diferenca,
-                    'OVERLAY': layer_interseccao_rl,
+                    'OVERLAY': layer_interseccao_rl_singles,
                     'OUTPUT': 'memory:'
                 })
 
@@ -76,6 +94,15 @@ if result_dissolucao_preservacao and result_dissolucao_preservacao['OUTPUT']:
                     layer_diferenca_final = diferenca_interseccao_sup_rl['OUTPUT']
                     layer_diferenca_final.setName("Área de supressão fora")
                     QgsProject.instance().addMapLayer(layer_diferenca_final)
+
+                    # Converter multipartes para partes simples
+                    result_diferenca_final_singles = processing.run("native:multiparttosingleparts", {
+                        'INPUT': layer_diferenca_final,
+                        'OUTPUT': 'memory:'
+                    })
+                    layer_diferenca_final_singles = result_diferenca_final_singles['OUTPUT']
+                    layer_diferenca_final_singles.setName("Área de supressão fora (Partes Simples)")
+                    QgsProject.instance().addMapLayer(layer_diferenca_final_singles)
                 else:
                     print("Falha ao executar a operação de diferença com o shapefile resultante da diferença com a área de supressão.")
             else:
