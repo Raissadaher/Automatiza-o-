@@ -1,5 +1,7 @@
-from qgis.core import QgsProject, QgsVectorLayer, QgsFeature, QgsField, QgsGeometry
+from qgis.core import QgsProject, QgsVectorLayer, QgsFeature, QgsField, QgsGeometry, QgsFeatureRequest, QgsVectorFileWriter
 from qgis.PyQt.QtCore import QVariant
+from qgis.core import QgsVectorLayer
+from qgis.core import *
 import processing
 
 # Obter as camadas
@@ -60,7 +62,42 @@ else:
     selected_count = layer_barragens_2018.selectedFeatureCount()
     print(f"Número de feições selecionadas: {selected_count}")
     
-    # Inverter a seleção
-    layer_barragens_2018.invertSelection()
-    inverted_count = layer_barragens_2018.selectedFeatureCount()
-    print(f"Número de feições selecionadas após inversão: {inverted_count}")
+    if selected_count > 0:
+        # Inverter a seleção
+        layer_barragens_2018.invertSelection()
+        inverted_count = layer_barragens_2018.selectedFeatureCount()
+        print(f"Número de feições selecionadas após inversão: {inverted_count}")
+        
+        if inverted_count > 0:
+            # Definir o caminho para o arquivo de saída, incluindo a extensão .shp
+            output_path = "C:/Users/raissa.alves/Documents/teste.shp"
+            
+            # Exportar feições selecionadas para um shapefile
+            options = QgsVectorFileWriter.SaveVectorOptions()
+            options.driverName = "ESRI Shapefile"
+            options.fileEncoding = "UTF-8"
+            options.onlySelectedFeatures = True  # Exportar apenas feições selecionadas
+            
+            error = QgsVectorFileWriter.writeAsVectorFormat(layer_barragens_2018, output_path, options)
+            
+            if error[0] == QgsVectorFileWriter.NoError:
+                print(f"Feições selecionadas exportadas para {output_path} com sucesso.")
+            else:
+                print(f"Erro ao exportar feições: {error}")
+        else:
+            print("Nenhuma feição selecionada após a inversão.")
+    else:
+        print("Nenhuma feição foi selecionada para inverter.")
+        
+shapefile_path = "C:/Users/raissa.alves/Documents/teste.shp"
+
+# Carregar a camada de shapefile
+layer_teste = QgsVectorLayer(shapefile_path, "teste", "ogr")
+
+# Verificar se a camada foi carregada corretamente
+if not layer_teste.isValid():
+    print("Falha ao carregar a camada.")
+else:
+    # Adicionar a camada ao projeto
+    QgsProject.instance().addMapLayer(layer_teste)
+    print("Camada 'Teste' carregada com sucesso.")
