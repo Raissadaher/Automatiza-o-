@@ -1,112 +1,66 @@
-from qgis.core import (
-    QgsProject,
-    QgsVectorLayer,
-    QgsFeature,
-    QgsGeometry,
-    QgsCoordinateReferenceSystem,
-    QgsCoordinateTransform,
-    QgsProcessingFeatureSourceDefinition,
-    QgsField
-)
-from qgis import processing
-from qgis.utils import iface
+from qgis.core import QgsProject, QgsVectorLayer, QgsFeature, QgsField, QgsGeometry
+from qgis.PyQt.QtCore import QVariant
+import processing
 
-# Obter a camada "Barragens Cadastradas - Plano Estadual de Segurança de Barragens"
-barragens_cadastradas = QgsProject.instance().mapLayersByName('Barragens Cadastradas - Plano Estadual de Segurança de Barragens')[0]
+# Obter as camadas
+layer_barragens_cadastradas = QgsProject.instance().mapLayersByName('Barragens Cadastradas - Plano Estadual de Segurança de Barragens')[0]
+layer_barragens_2018 = QgsProject.instance().mapLayersByName('Barragens 2018  (>1 ha)')[0]
 
-# Transformar para o CRS 31982
-crs_31982 = QgsCoordinateReferenceSystem('EPSG:31982')
-transform_context = QgsProject.instance().transformContext()
-transform = QgsCoordinateTransform(barragens_cadastradas.crs(), crs_31982, transform_context)
-
-# Criar uma nova camada temporária com CRS transformado
-transformed_layer = QgsVectorLayer('Point?crs=EPSG:31982', 'TransformedBarragensCadastradas', 'memory')
-transformed_layer_data = transformed_layer.dataProvider()
-
-# Adicionar os campos da camada original à nova camada
-transformed_layer_data.addAttributes(barragens_cadastradas.fields())
-transformed_layer.updateFields()
-
-# Transformar e adicionar as feições à nova camada
-for feature in barragens_cadastradas.getFeatures():
-    geom = feature.geometry()
-    geom.transform(transform)
-    new_feature = QgsFeature(feature)
-    new_feature.setGeometry(geom)
-    transformed_layer_data.addFeature(new_feature)
-
-# Adicionar a camada transformada ao projeto
-QgsProject.instance().addMapLayer(transformed_layer)
-
-# Aplicar buffer de 50 metros
-buffer_params = {
-    'INPUT': transformed_layer,
-    'DISTANCE': 50,
-    'SEGMENTS': 10,
-    'END_CAP_STYLE': 0,
-    'JOIN_STYLE': 0,
-    'MITER_LIMIT': 2,
-    'DISSOLVE': False,
-    'OUTPUT': 'memory:BufferedBarragensCadastradas'
-}
-buffered_barragens_cadastradas = processing.run("native:buffer", buffer_params)['OUTPUT']
-
-# Adicionar a camada de buffer ao projeto para verificação
-QgsProject.instance().addMapLayer(buffered_barragens_cadastradas)
-
-# Obter a camada "Barragens Não Cadastradas"
-barragens_nao_cadastradas = QgsProject.instance().mapLayersByName('Barragens Não Cadastradas')[0]
-
-# Transformar a camada "Barragens Não Cadastradas" para o CRS 31982 (se necessário)
-if barragens_nao_cadastradas.crs() != crs_31982:
-    transform_nao_cadastradas = QgsCoordinateTransform(barragens_nao_cadastradas.crs(), crs_31982, transform_context)
-    nao_cadastradas_transformed = QgsVectorLayer('Polygon?crs=EPSG:31982', 'TransformedBarragensNaoCadastradas', 'memory')
-    nao_cadastradas_transformed_data = nao_cadastradas_transformed.dataProvider()
-
-    # Adicionar os campos da camada original à nova camada
-    nao_cadastradas_transformed_data.addAttributes(barragens_nao_cadastradas.fields())
-    nao_cadastradas_transformed.updateFields()
-
-    # Transformar e adicionar as feições à nova camada
-    for feature in barragens_nao_cadastradas.getFeatures():
-        geom = feature.geometry()
-        geom.transform(transform_nao_cadastradas)
-        new_feature = QgsFeature(feature)
-        new_feature.setGeometry(geom)
-        nao_cadastradas_transformed_data.addFeature(new_feature)
-
-    # Adicionar a camada transformada ao projeto
-    QgsProject.instance().addMapLayer(nao_cadastradas_transformed)
+# Verificar se as camadas foram carregadas corretamente
+if layer_barragens_cadastradas is None or layer_barragens_2018 is None:
+    print("Uma ou ambas as camadas não foram encontradas.")
 else:
-    nao_cadastradas_transformed = barragens_nao_cadastradas
+    # Verificar se as camadas estão no mesmo CRS
+    if layer_barragens_cadastradas.crs() != layer_barragens_2018.crs():
+        print("As camadas estão em sistemas de coordenadas diferentes.")
+        exit()
 
-# Identificar as áreas não sobrepostas
-difference_params = {
-    'INPUT': QgsProcessingFeatureSourceDefinition(nao_cadastradas_transformed.id(), True),
-    'OVERLAY': QgsProcessingFeatureSourceDefinition(buffered_barragens_cadastradas.id(), True),
-    'OUTPUT': 'memory:DifferencedBarragens'
-}
-differenced_barragens = processing.run("native:difference", difference_params)['OUTPUT']
+    # Criar buffer na camada de barragens cadastradas com tamanho ajustado
+    buffer_distance = 0.00045  # Ajuste conforme necessário
+    buffer_layer = QgsVectorLayer(f"Polygon?crs={layer_barragens_cadastradas.crs().authid()}", "Buffer", "memory")
+    buffer_layer_data = buffer_layer.dataProvider()
+    buffer_layer_data.addAttributes([QgsField("id", QVariant.Int)])
+    buffer_layer.updateFields()
+    
+    features = layer_barragens_cadastradas.getFeatures()
+    buffer_features = []
+    for feature in features:
+        buffered_geom = feature.geometry().buffer(buffer_distance, 5)
+        if buffered_geom.isGeosValid():
+            buffer_feature = QgsFeature()
+            buffer_feature.setGeometry(buffered_geom)
+            buffer_feature.setAttributes([feature.id()])
+            buffer_features.append(buffer_feature)
+    
+    buffer_layer_data.addFeatures(buffer_features)
+    QgsProject.instance().addMapLayer(buffer_layer)
 
-# Adicionar a camada de diferença ao projeto
-QgsProject.instance().addMapLayer(differenced_barragens)
-
-# Filtrar feições não sobrepostas
-non_overlapping_features = []
-for feature in differenced_barragens.getFeatures():
-    non_overlapping_features.append(feature)
-
-# Criar uma nova camada temporária para as feições não sobrepostas
-non_overlapping_layer = QgsVectorLayer('Polygon?crs=EPSG:31982', 'NonOverlappingBarragens', 'memory')
-non_overlapping_data = non_overlapping_layer.dataProvider()
-
-# Adicionar os campos da camada original à nova camada
-non_overlapping_data.addAttributes(differenced_barragens.fields())
-non_overlapping_layer.updateFields()
-
-# Adicionar as feições não sobrepostas à nova camada
-for feature in non_overlapping_features:
-    non_overlapping_data.addFeature(feature)
-
-# Adicionar a camada de não sobreposição ao projeto
-QgsProject.instance().addMapLayer(non_overlapping_layer)
+    # Verificar se o buffer contém feições
+    buffer_feature_count = buffer_layer.featureCount()
+    print(f"Número de feições no buffer: {buffer_feature_count}")
+    if buffer_feature_count == 0:
+        print("O buffer está vazio. Verifique o processo de criação do buffer.")
+        exit()
+    
+    # Seleção por localização com predicados ajustados
+    try:
+        params = {
+            'INPUT': layer_barragens_2018,
+            'PREDICATE': [0],  # Tocar e sobrepor
+            'INTERSECT': buffer_layer,
+            'METHOD': 0  # Selecionar novos
+        }
+        processing.run("qgis:selectbylocation", params)
+        print("Seleção por localização realizada.")
+    except Exception as e:
+        print("Erro ao executar a seleção por localização:", e)
+        exit()
+    
+    # Verificar se houve seleção de feições
+    selected_count = layer_barragens_2018.selectedFeatureCount()
+    print(f"Número de feições selecionadas: {selected_count}")
+    
+    # Inverter a seleção
+    layer_barragens_2018.invertSelection()
+    inverted_count = layer_barragens_2018.selectedFeatureCount()
+    print(f"Número de feições selecionadas após inversão: {inverted_count}")
