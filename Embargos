@@ -1,0 +1,107 @@
+# Obtenha as camadas
+layer_alertas = QgsProject.instance().mapLayersByName('Alertas de desmatamento - MapBiomas')[0]
+layer_embargos = QgsProject.instance().mapLayersByName('Embargos Ambientais Estaduais – polígono')[0]
+
+try:
+    params = {
+        'INPUT': layer_embargos,
+        'PREDICATE': [0],  # Tocar e sobrepor
+        'INTERSECT': layer_alertas,
+        'METHOD': 0  # Selecionar novos
+    }
+    processing.run("qgis:selectbylocation", params)
+    print("Seleção por localização realizada.")
+
+except Exception as e:
+    print("Erro ao executar a seleção por localização:", e)
+
+# Verificar se houve seleção de feições
+selected_count = layer_embargos.selectedFeatureCount()
+print(f"Número de feições selecionadas: {selected_count}")
+
+if selected_count > 0:
+    # Inverter a seleção
+    layer_embargos.invertSelection()
+    inverted_count = layer_embargos.selectedFeatureCount()
+    print(f"Número de feições selecionadas após inversão: {inverted_count}")
+
+    if inverted_count > 0:
+        # Definir o caminho para o arquivo de saída, incluindo a extensão .shp
+        output_path = "C:/Users/raissa.alves/Desktop/PROJETO CAPITÃO GEGEO/Embargos.shp"
+
+        # Exportar feições selecionadas para um shapefile
+        options = QgsVectorFileWriter.SaveVectorOptions()
+        options.driverName = "ESRI Shapefile"
+        options.fileEncoding = "UTF-8"
+        options.onlySelectedFeatures = True  # Exportar apenas feições selecionadas
+
+        error = QgsVectorFileWriter.writeAsVectorFormat(layer_embargos, output_path, options)
+
+        if error[0] == QgsVectorFileWriter.NoError:
+            print(f"Feições selecionadas exportadas para {output_path} com sucesso.")
+        else:
+            print(f"Erro ao exportar feições: {error}")
+    else:
+        print("Nenhuma feição selecionada após a inversão.")
+else:
+    print("Nenhuma feição foi selecionada para inverter.")
+
+shapefile_path = "C:/Users/raissa.alves/Desktop/PROJETO CAPITÃO GEGEO/Embargos.shp"
+
+# Carregar a camada de shapefile
+layer_embargos_exported = QgsVectorLayer(shapefile_path, "Embargos", "ogr")
+
+# Verificar se a camada foi carregada corretamente
+if not layer_embargos_exported.isValid():
+    print("Falha ao carregar a camada.")
+else:
+    # Adicionar a camada ao projeto
+    QgsProject.instance().addMapLayer(layer_embargos_exported)
+    print("Camada 'Embargos' carregada com sucesso.")
+
+
+from qgis.PyQt.QtCore import QVariant
+from qgis.core import QgsProject, QgsField
+
+# Obtenha as camadas
+layer_alertas = QgsProject.instance().mapLayersByName('Alertas de desmatamento - MapBiomas')[0]
+layer_embargos = QgsProject.instance().mapLayersByName('Embargos')[0]
+
+# Adicionar a nova coluna 'COMPARACAO' se ela ainda não existir
+if layer_embargos.fields().indexFromName('COMPARACAO') == -1:
+    layer_embargos.dataProvider().addAttributes([QgsField('COMPARACAO', QVariant.String)])
+    layer_embargos.updateFields()
+
+# Iniciar a edição da camada de embargos
+layer_embargos.startEditing()
+
+# Criar um dicionário para mapear ANODETEC de alertas por algum identificador comum (exemplo: ID)
+alertas_map = {}
+for alerta_feat in layer_alertas.getFeatures():
+    id_alerta = alerta_feat['ID']  # Substitua 'ID' pelo campo comum
+    alertas_map[id_alerta] = alerta_feat['ANODETEC']
+
+# Iterar sobre as feições do shapefile de embargos
+for embargo_feat in layer_embargos.getFeatures():
+    id_embargo = embargo_feat['ID']  # Substitua 'ID' pelo campo comum
+
+    # Comparar os anos diretamente
+    if id_embargo in alertas_map:
+        anodetec = alertas_map[id_embargo]
+        anodetec_e = embargo_feat['ID']
+
+        if anodetec > anodetec_e:
+            embargo_feat['COMPARACAO'] = 'APÓS'
+        elif anodetec < anodetec_e:
+            embargo_feat['COMPARACAO'] = 'ANTES'
+        else:
+            embargo_feat['COMPARACAO'] = 'MESMO ANO'
+
+        # Atualizar a feição com o resultado da comparação
+        layer_embargos.updateFeature(embargo_feat)
+
+# Salvar as alterações e parar a edição
+layer_embargos.commitChanges()
+
+print("Comparação realizada e coluna COMPARACAO preenchida com sucesso.")
+
